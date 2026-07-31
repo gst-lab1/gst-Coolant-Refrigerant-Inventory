@@ -127,10 +127,13 @@
   tr.out td.num{ color:var(--out); }
 
   .grid-list{ display:grid; grid-template-columns:repeat(2, 1fr); gap:9px; }
-  .item-tile{ border:1px solid var(--line); border-radius:var(--radius-md); padding:10px 12px; background:var(--surface-alt); }
-  .item-tile .n{ font-size:12px; color:var(--ink-soft); font-weight:600; }
+  .item-tile{ border:1px solid var(--line); border-radius:var(--radius-md); padding:10px 12px; background:var(--surface-alt); position:relative; cursor:pointer; }
+  .item-tile:hover{ border-color:var(--coolant); }
+  .item-tile .n{ font-size:12px; color:var(--ink-soft); font-weight:600; padding-right:20px; }
   .item-tile .s{ font-size:16.5px; font-weight:700; margin-top:3px; letter-spacing:-0.01em; }
   .item-tile.zero .s{ color:var(--ink-mute); }
+  .item-tile .edit-ic{ position:absolute; top:8px; right:9px; font-size:12px; color:var(--ink-mute); }
+  .item-tile.selected{ border-color:var(--coolant); box-shadow:0 0 0 2px var(--coolant-soft); }
 
   .toggle-link{ font-size:12.5px; color:var(--refrig); cursor:pointer; font-weight:700; padding:6px 11px; background:var(--refrig-soft); border-radius:8px; }
   #coolantPanel .toggle-link{ color:var(--coolant); background:var(--coolant-soft); }
@@ -240,10 +243,24 @@
         <div class="grid-list" id="itemGrid"></div>
       </div>
 
+      <div class="card" id="editItemCard">
+        <h2 id="editItemTitle">품목을 선택하면 재고를 수정할 수 있습니다</h2>
+        <div id="editItemForm" class="hidden">
+          <div class="row"><label>재고량 (kg)</label><input type="number" id="editItemStock" step="0.1"></div>
+          <div class="row"><label>담당자</label><input type="text" id="editItemUser" placeholder="이름 입력"></div>
+          <div class="row"><label>수정 사유 (선택)</label><input type="text" id="editItemNote" placeholder="예: 실사 후 수량 정정"></div>
+          <div style="display:flex; gap:8px;">
+            <button class="submit-btn" id="editItemSaveBtn" style="background:var(--coolant);">수정 저장</button>
+            <button class="submit-btn" id="editItemDeleteBtn" style="background:var(--out);">품목 삭제</button>
+          </div>
+          <div id="editItemMsg"></div>
+        </div>
+      </div>
+
       <div class="card">
         <h2>최근 입출고 히스토리</h2>
         <table>
-          <thead><tr><th>시각</th><th>품목</th><th>구분</th><th class="num">수량</th><th>담당자</th></tr></thead>
+          <thead><tr><th>시각</th><th>품목</th><th>구분</th><th class="num">수량</th><th>담당자</th><th>내용</th></tr></thead>
           <tbody id="histBody"></tbody>
         </table>
       </div>
@@ -288,7 +305,7 @@
       <div class="card">
         <h2>최근 입출고 히스토리</h2>
         <table>
-          <thead><tr><th>시각</th><th>용기</th><th>구분</th><th class="num">수량</th><th>담당자</th></tr></thead>
+          <thead><tr><th>시각</th><th>용기</th><th>구분</th><th class="num">수량</th><th>담당자</th><th>내용</th></tr></thead>
           <tbody id="refrigHistBody"></tbody>
         </table>
       </div>
@@ -301,7 +318,7 @@
 // ⚠️ Apps Script 배포 후 발급된 웹 앱 URL로 교체하세요
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby_oTYds-PRJna7zFG-DDh-vVS_YHsKhzJwcdScZXqtYgI9Zwz2_Q0pD6Rdsd0xBisi/exec';
 
-let state = { cat:'쿨런트', txType:'입고', coolants:[], refrig:[], history:[], selectedRefrig:null, refrigTxType:'입고' };
+let state = { cat:'쿨런트', txType:'입고', coolants:[], refrig:[], history:[], selectedRefrig:null, refrigTxType:'입고', editingItem:null };
 
 const params = new URLSearchParams(location.search);
 if (params.get('type') === 'refrig') state.cat = '냉매';
@@ -361,8 +378,9 @@ function renderCoolant(){
   grid.innerHTML = '';
   state.coolants.forEach(it=>{
     const el = document.createElement('div');
-    el.className = 'item-tile' + (it.stock === 0 ? ' zero' : '');
-    el.innerHTML = '<div class="n">'+it.name+'</div><div class="s">'+fmt(it.stock)+' kg</div>';
+    el.className = 'item-tile' + (it.stock === 0 ? ' zero' : '') + (state.editingItem === it.name ? ' selected' : '');
+    el.innerHTML = '<span class="edit-ic">✎</span><div class="n">'+it.name+'</div><div class="s">'+fmt(it.stock)+' kg</div>';
+    el.addEventListener('click', ()=>{ state.editingItem = it.name; renderCoolant(); openEditItemForm(it); });
     grid.appendChild(el);
   });
 
@@ -372,7 +390,7 @@ function renderCoolant(){
     const tr = document.createElement('tr');
     tr.className = h.type === '입고' ? 'in' : 'out';
     tr.innerHTML = '<td>'+tsStr(h.timestamp)+'</td><td>'+h.label+'</td><td>'+h.type+'</td>'
-      +'<td class="num">'+(h.type==='입고'?'+':'-')+fmt(h.amount)+'</td><td>'+(h.user||'-')+'</td>';
+      +'<td class="num">'+(h.type==='입고'?'+':'-')+fmt(h.amount)+'</td><td>'+(h.user||'-')+'</td><td>'+(h.note||'-')+'</td>';
     body.appendChild(tr);
   });
 }
@@ -428,6 +446,56 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
 
 document.getElementById('addToggle').addEventListener('click', ()=>{
   document.getElementById('addItemForm').classList.toggle('hidden');
+});
+
+function openEditItemForm(it){
+  document.getElementById('editItemTitle').textContent = it.name + ' 수정 · 현재 ' + fmt(it.stock) + ' kg';
+  document.getElementById('editItemForm').classList.remove('hidden');
+  document.getElementById('editItemStock').value = it.stock;
+  document.getElementById('editItemMsg').innerHTML = '';
+}
+
+document.getElementById('editItemSaveBtn').addEventListener('click', async ()=>{
+  const msgEl = document.getElementById('editItemMsg');
+  if (!state.editingItem){ return; }
+  const newStock = document.getElementById('editItemStock').value;
+  const user = document.getElementById('editItemUser').value.trim();
+  const note = document.getElementById('editItemNote').value.trim();
+  if (newStock === '' || Number(newStock) < 0){ msgEl.innerHTML = '<div class="msg err">재고량을 확인해주세요.</div>'; return; }
+  if (!user){ msgEl.innerHTML = '<div class="msg err">담당자를 입력해주세요.</div>'; return; }
+  msgEl.innerHTML = '<div class="msg ok">저장 중...</div>';
+  try{
+    const res = await fetch(SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'setCoolantStock', name: state.editingItem, newStock, user, note })
+    });
+    const data = await res.json();
+    if (data.success){
+      msgEl.innerHTML = '<div class="msg ok">수정 완료 · 현재 재고 '+fmt(data.newStock)+' kg</div>';
+      document.getElementById('editItemUser').value=''; document.getElementById('editItemNote').value='';
+      await loadData();
+    } else msgEl.innerHTML = '<div class="msg err">'+(data.message||'수정에 실패했습니다.')+'</div>';
+  }catch(err){ msgEl.innerHTML = '<div class="msg err">네트워크 오류가 발생했습니다.</div>'; }
+});
+
+document.getElementById('editItemDeleteBtn').addEventListener('click', async ()=>{
+  const msgEl = document.getElementById('editItemMsg');
+  if (!state.editingItem){ return; }
+  if (!confirm(state.editingItem + ' 품목을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
+  const user = document.getElementById('editItemUser').value.trim();
+  try{
+    const res = await fetch(SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'deleteCoolantItem', name: state.editingItem, user })
+    });
+    const data = await res.json();
+    if (data.success){
+      document.getElementById('editItemForm').classList.add('hidden');
+      document.getElementById('editItemTitle').textContent = '품목을 선택하면 재고를 수정할 수 있습니다';
+      state.editingItem = null;
+      await loadData();
+    } else msgEl.innerHTML = '<div class="msg err">'+(data.message||'삭제에 실패했습니다.')+'</div>';
+  }catch(err){ msgEl.innerHTML = '<div class="msg err">네트워크 오류가 발생했습니다.</div>'; }
 });
 document.getElementById('addItemBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('newItemName').value.trim();
@@ -501,7 +569,7 @@ function renderRefrig(){
     const tr = document.createElement('tr');
     tr.className = h.type === '입고' ? 'in' : 'out';
     tr.innerHTML = '<td>'+tsStr(h.timestamp)+'</td><td>'+h.label+'</td><td>'+h.type+'</td>'
-      +'<td class="num">'+(h.type==='입고'?'+':'-')+fmt(h.amount)+'</td><td>'+(h.user||'-')+'</td>';
+      +'<td class="num">'+(h.type==='입고'?'+':'-')+fmt(h.amount)+'</td><td>'+(h.user||'-')+'</td><td>'+(h.note||'-')+'</td>';
     body.appendChild(tr);
   });
 
