@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>냉매 &amp; 쿨런트 재고 관리</title>
+
+<!-- 카카오톡/슬랙 등 공유 시 미리보기 카드 -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="냉매 & 쿨런트 재고 관리">
+<meta property="og:description" content="기술연구소 R&D Lab · QR 접속 후 입출고 등록">
+<meta property="og:image" content="https://gst-lab1.github.io/gst-Coolant-Refrigerant-Inventory/og-image.png">
+<meta property="og:url" content="https://gst-lab1.github.io/gst-Coolant-Refrigerant-Inventory/">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root{
+    --bg:#f4f6f8;
+    --surface:#ffffff;
+    --surface-alt:#f8f9fb;
+    --ink:#161a1f;
+    --ink-soft:#667085;
+    --ink-mute:#98a2b3;
+    --line:#e4e7ec;
+    --line-strong:#d0d5dd;
+
+    --coolant:#0f6e56;
+    --coolant-soft:#e6f4ef;
+    --coolant-line:#bfe3d5;
+
+    --refrig:#1d4e89;
+    --refrig-soft:#eaf1fb;
+    --refrig-line:#c3d7f0;
+
+    --in:#0f6e56;
+    --in-soft:#e6f4ef;
+    --out:#a13d1f;
+    --out-soft:#fbece4;
+
+    --radius-lg:18px;
+    --radius-md:11px;
+    --shadow-sm:0 1px 2px rgba(16,24,40,.04);
+    --shadow-md:0 2px 8px rgba(16,24,40,.06), 0 1px 2px rgba(16,24,40,.04);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'Segoe UI','Pretendard','Malgun Gothic',-apple-system,sans-serif;
+    padding-bottom:48px; -webkit-font-smoothing:antialiased;
+  }
+
+  header{
+    background:var(--surface); border-bottom:1px solid var(--line);
+    padding:18px 18px 16px; position:sticky; top:0; z-index:20;
+  }
+  .header-inner{ max-width:1120px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+  .brand{ display:flex; align-items:center; gap:11px; }
+  .brand-mark{
+    width:36px; height:36px; border-radius:10px; flex:none;
+    background:linear-gradient(155deg, var(--coolant) 0%, var(--refrig) 100%);
+    display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:14px;
+  }
+  header h1{ margin:0; font-size:17px; font-weight:700; letter-spacing:-0.01em; line-height:1.3; }
+  header p{ margin:2px 0 0; color:var(--ink-soft); font-size:12px; }
+  .status-pill{ font-size:11.5px; color:var(--ink-mute); white-space:nowrap; }
+
+  .wrap{ max-width:1120px; margin:0 auto; padding:20px 16px 0; }
+
+  /* 요약 통계 칩 */
+  .stat-row{ display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:18px; }
+  .stat-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-md);
+    padding:13px 15px; box-shadow:var(--shadow-sm);
+  }
+  .stat-card .k{ font-size:11.5px; color:var(--ink-soft); margin-bottom:4px; }
+  .stat-card .v{ font-size:19px; font-weight:700; letter-spacing:-0.01em; }
+  .stat-card .v span{ font-size:12px; font-weight:500; color:var(--ink-mute); margin-left:2px; }
+
+  .tabs{ display:flex; gap:8px; margin-bottom:20px; background:var(--surface-alt); padding:5px; border-radius:12px; border:1px solid var(--line); }
+  .tab{
+    flex:1; text-align:center; padding:10px 0; border-radius:8px; border:none;
+    background:transparent; font-weight:600; font-size:13.5px; color:var(--ink-soft); cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .tab[data-cat="쿨런트"].active{ background:var(--coolant); color:#fff; box-shadow:var(--shadow-sm); }
+  .tab[data-cat="냉매"].active{ background:var(--refrig); color:#fff; box-shadow:var(--shadow-sm); }
+
+  .layout{ display:flex; flex-direction:column; gap:16px; }
+
+  .card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg);
+    padding:18px; box-shadow:var(--shadow-sm);
+  }
+  .card h2{
+    font-size:13px; margin:0 0 14px; color:var(--ink); font-weight:700; letter-spacing:.01em;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .card h2 .sub{ font-weight:400; color:var(--ink-mute); font-size:11.5px; }
+
+  select, input[type="number"], input[type="text"]{
+    width:100%; padding:11px 13px; border:1px solid var(--line-strong); border-radius:var(--radius-md);
+    font-size:14.5px; background:var(--surface-alt); color:var(--ink); font-family:inherit;
+  }
+  select:focus, input:focus{ outline:none; border-color:var(--coolant); box-shadow:0 0 0 3px var(--coolant-soft); background:var(--surface); }
+  #refrigPanel select:focus, #refrigPanel input:focus{ border-color:var(--refrig); box-shadow:0 0 0 3px var(--refrig-soft); }
+
+  .stock-display{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin:14px 0 16px; padding:15px 17px; border-radius:var(--radius-md); background:var(--coolant-soft); border:1px solid var(--coolant-line);
+  }
+  .stock-display.refrig{ background:var(--refrig-soft); border-color:var(--refrig-line); }
+  .stock-display .label{ font-size:12.5px; color:var(--ink-soft); font-weight:600; }
+  .stock-display .value{ font-size:26px; font-weight:700; color:var(--coolant); letter-spacing:-0.02em; }
+  .stock-display.refrig .value{ color:var(--refrig); }
+  .stock-display .value span{ font-size:13px; font-weight:600; color:var(--ink-mute); margin-left:3px;}
+
+  .seg{ display:flex; gap:8px; margin-bottom:12px; }
+  .seg button{ flex:1; padding:10px 0; border-radius:var(--radius-md); border:1px solid var(--line-strong); background:var(--surface-alt); font-size:13.5px; font-weight:700; color:var(--ink-soft); cursor:pointer; }
+  .seg button.on[data-type="입고"], .seg button.on[data-rtype="입고"]{ background:var(--in); color:#fff; border-color:var(--in); }
+  .seg button.on[data-type="출고"], .seg button.on[data-rtype="출고"]{ background:var(--out); color:#fff; border-color:var(--out); }
+
+  .row{ margin-bottom:10px; }
+  .row label{ display:block; font-size:12px; color:var(--ink-soft); margin-bottom:5px; font-weight:600; }
+
+  .submit-btn{
+    width:100%; padding:12.5px 0; border:none; border-radius:var(--radius-md); background:var(--ink);
+    color:#fff; font-size:14.5px; font-weight:700; cursor:pointer; margin-top:4px; transition:opacity .12s;
+  }
+  .submit-btn:active{ opacity:.82; }
+
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th, td{ text-align:left; padding:9px 6px; border-bottom:1px solid var(--line); }
+  th{ color:var(--ink-mute); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+  td.num{ text-align:right; font-variant-numeric:tabular-nums; font-weight:600; }
+  tr.in td.num{ color:var(--in); }
+  tr.out td.num{ color:var(--out); }
+
+  .grid-list{ display:grid; grid-template-columns:repeat(2, 1fr); gap:9px; }
+  .item-tile{ border:1px solid var(--line); border-radius:var(--radius-md); padding:10px 12px 10px 28px; background:var(--surface-alt); position:relative; cursor:pointer; }
+  .item-tile:hover{ border-color:var(--coolant); }
+  .item-tile.dragging{ opacity:.4; }
+  .item-tile.drag-over{ border-color:var(--coolant); box-shadow:0 0 0 2px var(--coolant-soft); }
+  .item-tile .n{ font-size:12px; color:var(--ink-soft); font-weight:600; padding-right:20px; }
+  .item-tile .s{ font-size:16.5px; font-weight:700; margin-top:3px; letter-spacing:-0.01em; }
+  .item-tile.zero .s{ color:var(--ink-mute); }
+  .item-tile .edit-ic{ position:absolute; top:8px; right:9px; font-size:12px; color:var(--ink-mute); }
+  .item-tile .drag-ic{ position:absolute; top:6px; left:7px; font-size:13px; color:var(--ink-mute); cursor:grab; letter-spacing:-2px; touch-action:none; user-select:none; padding:4px; }
+  .item-tile.selected{ border-color:var(--coolant); box-shadow:0 0 0 2px var(--coolant-soft); }
+  .matrix tr.dragging{ opacity:.4; }
+  .matrix tr.drag-over td{ box-shadow:inset 0 2px 0 var(--refrig); }
+  .matrix .drag-ic{ cursor:grab; color:var(--ink-mute); margin-right:6px; font-size:12px; letter-spacing:-2px; touch-action:none; user-select:none; padding:4px; display:inline-block; }
+
+  .toggle-link{ font-size:12.5px; color:var(--refrig); cursor:pointer; font-weight:700; padding:6px 11px; background:var(--refrig-soft); border-radius:8px; }
+  #coolantPanel .toggle-link{ color:var(--coolant); background:var(--coolant-soft); }
+  .hidden{ display:none !important; }
+  .msg{ font-size:13px; margin-top:8px; padding:10px 12px; border-radius:9px; font-weight:600; }
+  .msg.ok{ background:var(--in-soft); color:var(--in); }
+  .msg.err{ background:var(--out-soft); color:var(--out); }
+  .status{ font-size:11.5px; color:var(--ink-mute); text-align:center; margin-top:14px; }
+  .hist-edit-ic{ cursor:pointer; color:var(--ink-mute); font-size:12.5px; padding:2px 4px; }
+  .hist-edit-ic:hover{ color:var(--ink); }
+  .site-footer{ max-width:1180px; margin:36px auto 0; padding:18px 16px 30px; text-align:center; border-top:1px solid var(--line); }
+  .site-footer .maker{ font-size:12px; color:var(--ink-mute); margin-bottom:10px; }
+  .site-footer .hits{ display:inline-block; }
+
+  .inline-form{ margin-bottom:14px; padding:14px; background:var(--surface-alt); border:1px dashed var(--line-strong); border-radius:var(--radius-md); }
+  .inline-form p.hint{ font-size:11.5px; color:var(--ink-soft); margin:4px 0 10px; line-height:1.5; }
+
+  /* 냉매 매트릭스 테이블 */
+  .matrix-wrap{ overflow-x:auto; margin-bottom:4px; border-radius:var(--radius-md); border:1px solid var(--line); }
+  .matrix{ border-collapse:collapse; font-size:12.5px; white-space:nowrap; width:100%; }
+  .matrix th, .matrix td{ border-bottom:1px solid var(--line); border-right:1px solid var(--line); padding:9px 11px; text-align:center; }
+  .matrix th{ background:var(--surface-alt); color:var(--ink-soft); font-weight:700; font-size:11px; text-transform:none; letter-spacing:0; }
+  .matrix td.type-cell{ text-align:left; font-weight:700; background:var(--surface-alt); position:sticky; left:0; z-index:1; }
+  .matrix td.cell{ cursor:pointer; color:var(--ink); font-weight:500; }
+  .matrix td.cell:hover{ background:var(--refrig-soft); }
+  .matrix td.cell.selected{ background:var(--refrig); color:#fff; font-weight:700; }
+  .matrix td.empty{ color:var(--line-strong); }
+  .matrix td.total{ font-weight:700; background:var(--surface-alt); }
+  .matrix tr:last-child td{ border-bottom:none; }
+
+  /* ===== 모바일 (기본) ===== */
+  @media (max-width: 859px){
+    .wrap{ padding:16px 14px 0; }
+    .stat-row{ grid-template-columns:1fr 1fr; }
+    .card{ padding:15px; border-radius:14px; }
+  }
+
+  /* ===== 데스크톱 / 웹 ===== */
+  @media (min-width: 860px){
+    header{ padding:20px 28px; }
+    .wrap{ padding:28px 28px 0; max-width:1180px; }
+    .stat-row{ grid-template-columns:repeat(4, 1fr); gap:14px; margin-bottom:24px; }
+    .stat-card{ padding:16px 18px; }
+    .stat-card .v{ font-size:22px; }
+    .tabs{ max-width:340px; margin-bottom:22px; }
+    .layout{ display:grid; grid-template-columns:360px 1fr; align-items:start; gap:20px; }
+    .layout .col-side{ display:flex; flex-direction:column; gap:16px; }
+    .layout .col-main{ display:flex; flex-direction:column; gap:16px; }
+    .card{ padding:22px; }
+    .grid-list{ grid-template-columns:repeat(3, 1fr); }
+  }
+  @media (min-width: 1180px){
+    .grid-list{ grid-template-columns:repeat(4, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark">GST</div>
+      <div>
+        <h1>냉매 &amp; 쿨런트 재고 관리</h1>
+        <p>기술연구소 R&amp;D Lab · QR 접속 후 입출고 등록</p>
+      </div>
+    </div>
+    <div class="status-pill" id="statusMsg">불러오는 중...</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="stat-row" id="statRow"></div>
+
+  <div class="tabs">
+    <div class="tab" data-cat="쿨런트">쿨런트</div>
+    <div class="tab" data-cat="냉매">냉매</div>
+  </div>
+
+  <!-- ===== 쿨런트 (총량 방식) ===== -->
+  <div id="coolantPanel" class="layout">
+    <div class="col-side">
+      <div class="card">
+        <h2>품목 선택 &amp; 입출고</h2>
+        <select id="itemSelect"></select>
+        <div class="stock-display" id="stockDisplay">
+          <div class="label">현재 재고량</div>
+          <div class="value"><span id="stockValue">-</span><span>kg</span></div>
+        </div>
+        <div class="seg">
+          <button data-type="입고" class="on">입고</button>
+          <button data-type="출고">출고</button>
+        </div>
+        <div class="row"><label>순 쿨런트량 (kg)</label><input type="number" id="amountInput" placeholder="예: 5" step="0.1" min="0"></div>
+        <div class="row"><label>담당자</label><input type="text" id="userInput" placeholder="이름 입력"></div>
+        <div class="row"><label>내용 (선택)</label><input type="text" id="noteInput" placeholder="예: 정기 보충, 설비 A 사용 등"></div>
+        <button class="submit-btn" id="submitBtn">등록</button>
+        <div id="formMsg"></div>
+      </div>
+    </div>
+
+    <div class="col-main">
+      <div class="card">
+        <h2><span>쿨런트 재고 현황</span><span class="toggle-link" id="addToggle">+ 신규 품목</span></h2>
+        <div id="addItemForm" class="inline-form hidden">
+          <div class="row"><label>제품명</label><input type="text" id="newItemName" placeholder="예: HT-300"></div>
+          <div class="row"><label>초기 재고량 (kg, 선택)</label><input type="number" id="newItemStock" placeholder="0" step="0.1"></div>
+          <div class="row"><label>담당자</label><input type="text" id="newItemUser" placeholder="이름 입력"></div>
+          <button class="submit-btn" id="addItemBtn" style="background:var(--coolant);">품목 추가</button>
+          <div id="addMsg"></div>
+        </div>
+        <div class="grid-list" id="itemGrid"></div>
+      </div>
+
+      <div class="card" id="editItemCard">
+        <h2 id="editItemTitle">품목을 선택하면 재고를 수정할 수 있습니다</h2>
+        <div id="editItemForm" class="hidden">
+          <div class="row"><label>재고량 (kg)</label><input type="number" id="editItemStock" step="0.1"></div>
+          <div class="row"><label>담당자</label><input type="text" id="editItemUser" placeholder="이름 입력"></div>
+          <div class="row"><label>수정 사유 (선택)</label><input type="text" id="editItemNote" placeholder="예: 실사 후 수량 정정"></div>
+          <div style="display:flex; gap:8px;">
+            <button class="submit-btn" id="editItemSaveBtn" style="background:var(--coolant);">수정 저장</button>
+            <button class="submit-btn" id="editItemDeleteBtn" style="background:var(--out);">품목 삭제</button>
+          </div>
+          <div id="editItemMsg"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>최근 입출고 히스토리</h2>
+        <table>
+          <thead><tr><th>시각</th><th>품목</th><th>구분</th><th class="num">수량</th><th>담당자</th><th>내용</th><th></th></tr></thead>
+          <tbody id="histBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 냉매 (용기별 넘버링 매트릭스) ===== -->
+  <div id="refrigPanel" class="layout hidden">
+    <div class="col-side">
+      <div class="card" id="refrigFormCard">
+        <h2 id="refrigSelectedTitle">선택된 용기가 없습니다</h2>
+        <div class="seg">
+          <button data-rtype="입고" class="on">입고</button>
+          <button data-rtype="출고">출고</button>
+        </div>
+        <div class="row"><label>순 냉매량 (kg)</label><input type="number" id="refrigAmountInput" placeholder="예: 3" step="0.1" min="0"></div>
+        <div class="row"><label>담당자</label><input type="text" id="refrigUserInput" placeholder="이름 입력"></div>
+        <div class="row"><label>내용 (선택)</label><input type="text" id="refrigNoteInput" placeholder="예: 설비 A 충전"></div>
+        <button class="submit-btn" id="refrigSubmitBtn" style="background:var(--refrig);">등록</button>
+        <div id="refrigFormMsg"></div>
+      </div>
+
+      <div class="card" id="editRefrigCard">
+        <h2>용기 직접 수정 / 삭제</h2>
+        <div id="editRefrigForm" class="hidden">
+          <div class="row"><label>순 냉매량 (kg)</label><input type="number" id="editRefrigAmount" step="0.1"></div>
+          <div class="row"><label>담당자</label><input type="text" id="editRefrigUser" placeholder="이름 입력"></div>
+          <div class="row"><label>수정 사유 (선택)</label><input type="text" id="editRefrigNote" placeholder="예: 실사 후 수량 정정"></div>
+          <div style="display:flex; gap:8px;">
+            <button class="submit-btn" id="editRefrigSaveBtn" style="background:var(--refrig);">수정 저장</button>
+            <button class="submit-btn" id="editRefrigDeleteBtn" style="background:var(--out);">용기 삭제</button>
+          </div>
+          <div id="editRefrigMsg"></div>
+        </div>
+        <p id="editRefrigHint" style="font-size:12.5px; color:var(--ink-soft); margin:0;">위 표에서 용기를 선택하면 여기서 직접 수정/삭제할 수 있습니다.</p>
+      </div>
+
+      <div class="card">
+        <h2>신규 용기 번호 생성</h2>
+        <div class="row"><label>냉매 종류</label><input type="text" id="newRefrigType" placeholder="예: R410A 또는 신규 종류명" list="refrigTypeList"><datalist id="refrigTypeList"></datalist></div>
+        <div class="row"><label>시작 번호 (선택, 비우면 자동 부여)</label><input type="number" id="newRefrigStart" placeholder="예: 5 → R410A-5부터 생성" min="1" step="1"></div>
+        <div class="row"><label>생성할 번호 개수</label><input type="number" id="newRefrigCount" placeholder="1" value="1" min="1" step="1"></div>
+        <div class="row"><label>초기 순 냉매량 (kg)</label><input type="number" id="newRefrigAmount" placeholder="개수 1개·즉시 입고 시에만 입력" step="0.1"></div>
+        <div class="row"><label>담당자</label><input type="text" id="newRefrigUser" placeholder="이름 입력"></div>
+        <p class="hint" style="font-size:11.5px; color:var(--ink-soft); margin:0 0 10px;">곧 입고될 예정이라면 번호만 미리 만들어두세요 (순 냉매량 비워두면 0kg으로 생성).</p>
+        <button class="submit-btn" id="addRefrigBtn" style="background:var(--refrig);">번호 생성</button>
+        <div id="addRefrigMsg"></div>
+      </div>
+    </div>
+
+    <div class="col-main">
+      <div class="card">
+        <h2><span>냉매 용기별 재고 현황</span><span class="sub">넘버링 셀 클릭 → 입출고 등록</span></h2>
+        <div class="matrix-wrap">
+          <table class="matrix" id="matrixTable"></table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>최근 입출고 히스토리</h2>
+        <table>
+          <thead><tr><th>시각</th><th>용기</th><th>구분</th><th class="num">수량</th><th>담당자</th><th>내용</th><th></th></tr></thead>
+          <tbody id="refrigHistBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card hidden" id="editHistCard">
+    <h2 id="editHistTitle">히스토리 항목 수정</h2>
+    <div class="seg">
+      <button data-htype="입고" class="on">입고</button>
+      <button data-htype="출고">출고</button>
+    </div>
+    <div class="row"><label id="editHistAmountLabel">수량 (kg)</label><input type="number" id="editHistAmount" step="0.1" min="0"></div>
+    <div class="row"><label>담당자</label><input type="text" id="editHistUser" placeholder="이름 입력"></div>
+    <div class="row"><label>내용 (선택)</label><input type="text" id="editHistNote" placeholder="내용"></div>
+    <button class="submit-btn" id="editHistSaveBtn">수정 저장</button>
+    <div id="editHistMsg"></div>
+  </div>
+
+</div>
+
+<div class="site-footer">
+  <div class="maker">제작 및 문의 · 기술연구소 강다현(dhkang3) 주임</div>
+  <div class="hits">
+    <!-- url= 뒤에 실제 배포 주소가 URL인코딩되어 들어가 있습니다 -->
+    <a href="https://hitscounter.dev" target="_blank">
+      <img src="https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgst-lab1.github.io%2Fgst-Coolant-Refrigerant-Inventory%2F&label=Hits&icon=eye&color=%230f172a" alt="Hits" style="height:28px;" />
+    </a>
+  </div>
+</div>
+
+<script>
+// ⚠️ Apps Script 배포 후 발급된 웹 앱 URL로 교체하세요
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby_oTYds-PRJna7zFG-DDh-vVS_YHsKhzJwcdScZXqtYgI9Zwz2_Q0pD6Rdsd0xBisi/exec';
+
+let state = { cat:'쿨런트', txType:'입고', coolants:[], refrig:[], history:[], selectedRefrig:null, refrigTxType:'입고', editingItem:null };
+
+const params = new URLSearchParams(location.search);
+if (params.get('type') === 'refrig') state.cat = '냉매';
+
+function fmt(n){ return Number(n).toLocaleString('ko-KR', { maximumFractionDigits: 2 }); }
+
+async function loadData(){
+  document.getElementById('statusMsg').textContent = '불러오는 중...';
+  try{
+    const res = await fetch(SCRIPT_URL);
+    const data = await res.json();
+    state.coolants = data.coolants || [];
+    state.refrig = data.refrig || [];
+    state.history = data.history || [];
+    document.getElementById('statusMsg').textContent = '업데이트: ' + new Date().toLocaleTimeString('ko-KR');
+    render();
+  }catch(err){
+    document.getElementById('statusMsg').textContent = '데이터를 불러오지 못했습니다. SCRIPT_URL 설정을 확인하세요.';
+  }
+}
+
+function renderStats(){
+  const coolantTotal = state.coolants.reduce((s,i)=>s+i.stock,0);
+  const coolantTypes = state.coolants.length;
+  const refrigTotal = state.refrig.reduce((s,r)=>s+r.amount,0);
+  const refrigContainers = state.refrig.length;
+  const el = document.getElementById('statRow');
+  el.innerHTML =
+    '<div class="stat-card"><div class="k">쿨런트 총 재고</div><div class="v">'+fmt(coolantTotal)+'<span>kg</span></div></div>'
+    +'<div class="stat-card"><div class="k">쿨런트 품목 수</div><div class="v">'+coolantTypes+'<span>종</span></div></div>'
+    +'<div class="stat-card"><div class="k">냉매 총 재고</div><div class="v">'+fmt(refrigTotal)+'<span>kg</span></div></div>'
+    +'<div class="stat-card"><div class="k">냉매 용기 수</div><div class="v">'+refrigContainers+'<span>개</span></div></div>';
+}
+
+function render(){
+  document.querySelectorAll('.tab').forEach(t=> t.classList.toggle('active', t.dataset.cat === state.cat));
+  document.getElementById('coolantPanel').classList.toggle('hidden', state.cat !== '쿨런트');
+  document.getElementById('refrigPanel').classList.toggle('hidden', state.cat !== '냉매');
+  renderStats();
+  if (state.cat === '쿨런트') renderCoolant(); else renderRefrig();
+}
+
+/* ---------- 쿨런트 (총량) ---------- */
+function renderCoolant(){
+  const sel = document.getElementById('itemSelect');
+  const prev = sel.value;
+  sel.innerHTML = '';
+  state.coolants.forEach(it=>{
+    const opt = document.createElement('option');
+    opt.value = it.name; opt.textContent = it.name;
+    sel.appendChild(opt);
+  });
+  if (state.coolants.some(i=>i.name===prev)) sel.value = prev;
+  updateCoolantStockDisplay();
+
+  const grid = document.getElementById('itemGrid');
+  grid.innerHTML = '';
+  state.coolants.forEach(it=>{
+    const el = document.createElement('div');
+    el.className = 'item-tile' + (it.stock === 0 ? ' zero' : '') + (state.editingItem === it.name ? ' selected' : '');
+    el.dataset.name = it.name;
+    el.innerHTML = '<span class="drag-ic">⠿</span><span class="edit-ic">✎</span><div class="n">'+it.name+'</div><div class="s">'+fmt(it.stock)+' kg</div>';
+    el.addEventListener('click', ()=>{
+      state.editingItem = it.name; renderCoolant(); openEditItemForm(it);
+    });
+    grid.appendChild(el);
+    attachTileDragHandle(el);
+  });
+
+  function attachTileDragHandle(el){
+    const handle = el.querySelector('.drag-ic');
+    handle.addEventListener('pointerdown', (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      handle.setPointerCapture(e.pointerId);
+      el.classList.add('dragging');
+      let moved = false;
+      function onMove(ev){
+        const target = document.elementFromPoint(ev.clientX, ev.clientY);
+        const overTile = target && target.closest ? target.closest('.item-tile') : null;
+        if (overTile && overTile !== el && overTile.parentNode === el.parentNode){
+          moved = true;
+          const cmp = el.compareDocumentPosition(overTile);
+          if (cmp & Node.DOCUMENT_POSITION_FOLLOWING) overTile.parentNode.insertBefore(el, overTile.nextSibling);
+          else overTile.parentNode.insertBefore(el, overTile);
+        }
+      }
+      function onUp(ev){
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        el.classList.remove('dragging');
+        if (moved){
+          const suppress = (ce)=>{ ce.stopPropagation(); ce.preventDefault(); el.removeEventListener('click', suppress, true); };
+          el.addEventListener('click', suppress, true);
+          const newOrder = Array.from(el.parentNode.children).map(c=>c.dataset.name);
+          state.coolants.sort((a,b)=> newOrder.indexOf(a.name) - newOrder.indexOf(b.name));
+          fetch(SCRIPT_URL, {
+            method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+            body: JSON.stringify({ action:'reorderCoolant', order: newOrder })
+          }).catch(()=>{});
+        }
+      }
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+  }
+
+  const body = document.getElementById('histBody');
+  body.innerHTML = '';
+  state.history.filter(h=>h.category==='쿨런트').slice(0,10).forEach(h=>{
+    const tr = document.createElement('tr');
+    tr.className = h.type === '입고' ? 'in' : 'out';
+    tr.innerHTML = '<td>'+tsStr(h.timestamp)+'</td><td>'+h.label+'</td><td>'+h.type+'</td>'
+      +'<td class="num">'+(h.type==='입고'?'+':'-')+fmt(h.amount)+'</td><td>'+(h.user||'-')+'</td><td>'+(h.note||'-')+'</td>'
+      +'<td><span class="hist-edit-ic" title="수정">✎</span></td>';
+    tr.querySelector('.hist-edit-ic').addEventListener('click', ()=> openEditHistoryForm(h));
+    body.appendChild(tr);
+  });
+}
+
+function updateCoolantStockDisplay(){
+  const name = document.getElementById('itemSelect').value;
+  const item = state.coolants.find(i=>i.name===name);
+  document.getElementById('stockValue').textContent = item ? fmt(item.stock) : '-';
+}
+
+function tsStr(ts){
+  if (!ts) return '';
+  const t = new Date(ts);
+  return (t.getMonth()+1)+'/'+t.getDate()+' '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+}
+
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{ state.cat = tab.dataset.cat; render(); });
+});
+document.getElementById('itemSelect').addEventListener('change', updateCoolantStockDisplay);
+document.querySelectorAll('#coolantPanel .seg button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#coolantPanel .seg button').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    state.txType = btn.dataset.type;
+  });
+});
+
+document.getElementById('submitBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('itemSelect').value;
+  const amount = document.getElementById('amountInput').value;
+  const user = document.getElementById('userInput').value.trim();
+  const note = document.getElementById('noteInput').value.trim();
+  const msgEl = document.getElementById('formMsg');
+  if (!name || !amount || Number(amount) <= 0){ msgEl.innerHTML = '<div class="msg err">품목과 수량을 확인해주세요.</div>'; return; }
+  if (!user){ msgEl.innerHTML = '<div class="msg err">담당자를 입력해주세요.</div>'; return; }
+  document.getElementById('submitBtn').disabled = true;
+  msgEl.innerHTML = '<div class="msg ok">등록 중...</div>';
+  try{
+    const res = await fetch(SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'coolantTransaction', name, type:state.txType, amount, user, note })
+    });
+    const data = await res.json();
+    if (data.success){
+      msgEl.innerHTML = '<div class="msg ok">등록 완료 · 현재 재고 '+fmt(data.newStock)+' kg</div>';
+      document.getElementById('amountInput').value=''; document.getElementById('noteInput').value='';
+      await loadData();
+    } else msgEl.innerHTML = '<div class="msg err">'+(data.message||'등록에 실패했습니다.')+'</div>';
+  }catch(err){ msgEl.innerHTML = '<div class="msg err">네트워크 오류가 발생했습니다.</div>'; }
+  document.getElementById('submitBtn').disabled = false;
+});
+
+document.getElementById('addToggle').addEventListener('click', ()=>{
+  document.getElementById('addItemForm').classList.toggle('hidden');
+});
+
+function openEditItemForm(it){
+  document.getElementById('editItemTitle').textContent = it.name + ' 수정 · 현재 ' + fmt(it.stock) + ' kg';
+  document.getElementById('editItemForm').classList.remove('hidden');
+  document.getElementById('editItemStock').value = it.stock;
+  document.getElementById('editItemMsg').innerHTML = '';
+}
+
+document.getElementById('editItemSaveBtn').addEventListener('click', async ()=>{
+  const msgEl = document.getElementById('editItemMsg');
+  if (!state.editingItem){ return; }
+  const newStock = document.getElementById('editItemStock').value;
+  const user = document.getElementById('editItemUser').value.trim();
+  const note = document.getElementById('editItemNote').value.trim();
+  if (newStock === '' || Number(newStock) < 0){ msgEl.innerHTML = '<div class="msg err">재고량을 확인해주세요.</div>'; return; }
+  if (!user){ msgEl.innerHTML = '<div class="msg err">담당자를 입력해주세요.</div>'; return; }
+  msgEl.innerHTML = '<div class="msg ok">저장 중...</div>';
+  try{
+    const res = await fetch(SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'setCoolantStock', name: state.editingItem, newStock, user, note })
+    });
+    const data = await res.json();
+    if (data.success){
+      msgEl.innerHTML = '<div class="msg ok">수정 완료 · 현재 재고 '+fmt(data.newStock)+' kg</div>';
+      document.getElementById('editItemUser').value=''; document.getElementById('editItemNote').value='';
+      await loadData();
+    } else msgEl.innerHTML = '<div class="msg err">'+(data.message||'수정에 실패했습니다.')+'</div>';
+  }catch(err){ msgEl.innerHTML = '<div class="msg err">네트워크 오류가 발생했습니다.</div>'; }
+});
+
+document.getElementById('editItemDeleteBtn').addEventListener('click', async ()=>{
+  const msgEl = document.getElementById('editItemMsg');
+  if (!state.editingItem){ return; }
+  if (!confirm(state.editingItem + ' 품목을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
+  const user = document.getElementById('editItemUser').value.trim();
+  try{
+    const res = await fetch(SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'deleteCoolantItem', name: state.editingItem, user })
+    });
+    const data = await res.json();
+    if (data.success){
+      document.getElementById('editItemForm').classList.add('hidden');
+      document.getElementById('editItemTitle').textContent = '품목을 선택하면 재고를 수정할 수 있습니다';
+      state.editingItem = null;
+      await loadData();
+    } else msgEl.innerHTML = '<div class="msg err">'+(data.message||'삭제에 실패했습니다.')+'</div>';
+  }catch(err){ msgEl.innerHTML = '<div class="msg err">네트워크 오류가 발생했습니다.</div>'; }
+});
+document.getElementById('addItemBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('newItemName').value.trim();
+  const initialStock = document.getElementById('newItemStock').value || 0;
+  const user = document.getElementById('newItemUser').value.trim();
+  const msgEl = document.getElementById('addMsg');
+  if (!name){ msgEl.innerHTML = '<div class="msg err">제품명을 입력해주세요.</div>'; return; }
+  if (!user){ msgEl.innerHTML = '<div class="msg err">담당자를 입력해주세요.</div>'; return; }
+  try{
+    const res = await fetch(SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'addCoolantItem', name, initialStock, user })
+    });
+    const data = await res.json();
+    if (data.success){
+      msgEl.innerHTML = '<div class="msg ok">품목이 추가되었습니다.</div>';
+      document.getElementById('newItemName').value=''; document.getElementById('newItemStock').value=''; document.getElementById('newItemUser').value='';
+      await loadData();
+    } else msgEl.innerHTML = '<div class="msg err">'+(data.message||'추가에 실패했습니다.')+'</div>';
+  }catch(err){ msgEl.innerHTML = '<div class="msg err">네트워크 오류가 발생했습니다.</div>'; }
+});
+
+/* ---------- 냉매 (용기별 넘버링 매트릭스) ---------- */
+function refrigTypes(){
+  const set = [];
+  state.refrig.forEach(r=>{ if (!set.includes(r.type)) set.push(r.type); });
+  return set;
+}
+
+function renderRefrig(){
+  const types = refrigTypes();
+  let maxN = 0;
+  state.refrig.forEach(r=> maxN = Math.max(maxN, r.numbering));
+  if (maxN < 1) maxN = 1;
+
+  const table = document.getElementById('matrixTable');
+  let html = '<tr><th>냉매종류</th>';
+  for (let n=1; n<=maxN; n++) html += '<th>'+n+'</th>';
+  html += '<th>총(kg)</th><th>개수</th></tr>';
+
+  types.forEach(type=>{
+    const containers = state.refrig.filter(r=>r.type===type);
+    const total = containers.reduce((s,c)=>s+c.amount,0);
+    html += '<tr data-rtype="'+type+'"><td class="type-cell"><span class="drag-ic">⠿</span>'+type+'</td>';
+    for (let n=1; n<=maxN; n++){
+      const c = containers.find(x=>x.numbering===n);
+      if (c){
+        const sel = state.selectedRefrig && state.selectedRefrig.type===type && state.selectedRefrig.numbering===n ? ' selected' : '';
+        html += '<td class="cell'+sel+'" data-type="'+type+'" data-n="'+n+'" data-amt="'+c.amount+'">'+fmt(c.amount)+'</td>';
+      } else {
+        html += '<td class="empty">-</td>';
+      }
+    }
+    html += '<td class="total">'+fmt(total)+'</td><td class="total">'+containers.length+'</td></tr>';
+  });
+  table.innerHTML = html;
+
+  table.querySelectorAll('td.cell').forEach(td=>{
+    td.addEventListener('click', ()=>{
+      state.selectedRefrig = { type: td.dataset.type, numbering: Number(td.dataset.n), amount: Number(td.dataset.amt) };
+      renderRefrig();
+      updateRefrigFormTitle();
+      openEditRefrigForm(state.selectedRefrig);
+    });
+  });
+
+  table.querySelectorAll('tr[data-rtype]').forEach(tr=>{
+    const handle = tr.querySelector('.drag-ic');
+    handle.addEventListener('pointerdown', (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      handle.setPointerCapture(e.pointerId);
+      tr.classList.add('dragging');
+      function onMove(ev){
+        const target = document.elementFromPoint(ev.clientX, ev.clientY);
+        const overRow = target && target.closest ? target.closest('tr[data-rtype]') : null;
+        if (overRow && overRow !== tr && overRow.parentNode === tr.parentNode){
+          const cmp = tr.compareDocumentPosition(overRow);
+          if (cmp & Node.DOCUMENT_POSITION_FOLLOWING) overRow.parentNode.insertBefore(tr, overRow.nextSibling);
+          else overRow.parentNode.insertBefore(tr, overRow);
+        }
+      }
+      function onUp(ev){
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        tr.classList.remove('dragging');
+        const newTypes = Array.from(tr.parentNode.querySelectorAll('tr[data-rtype]')).map(r=>r.dataset.rtype);
+        const reordered = [];
+        newTypes.forEach(t=> state.refrig.filter(r=>r.type===t).forEach(r=>reordered.push(r)));
+        state.refrig = reordered;
+        fetch(SCRIPT_URL, {
+          method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ action:'reorderRefrig', order: newTypes })
+        }).catch(()=>{});
+      }
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+  });
+
+  const datalist = document.getElementById('refrigTypeList');
+  datalist.innerHTML = '';
+  types.forEach(t=>{ const o=document.createElement('option'); o.value=t; datalist.appendChild(o); });
+
+  const body = document.getElementById('refrigHistBody');
+  body.innerHTML = '';
+  state.history.filter(h=>h.category==='냉매').slice(0,10).forEach(h=>{
+    const tr = document.createElement('tr');
+    tr.className = h.type === '입고' ? 'in' : 'out';
+    tr.innerHTML = '<td>'+tsStr(h.timestamp)+'</td><td>'+h.label+'</td><td>'+h.type+'</td>'
+      +'<td class="num">'+(h.type==='입고'?'+':'-')+fmt(h.amount)+'</td><td>'+(h.user||'-')+'</td><td>'+(h.note||'-')+'</td>'
+      +'<td><span class="hist-edit-ic" title="수정">✎</span></td>';
+    tr.querySelector('.hist-edit-ic').addEventListener('click', ()=> openEditHistoryForm(h));
+    body.appendChild(tr);
+  });
+
+  updateRefrigFormTitle();
+}
+
+function updateRefrigFormTitle(){
+  const t = document.getElementById('refrigSelectedTitle');
+  if (state.selectedRefrig){
+    t.textContent = state.selectedRefrig.type + '-' + state.selectedRefrig.numbering + ' · 현재 ' + fmt(state.selectedRefrig.amount) + ' kg';
+  } else {
+    t.textContent = '선택된 용기가 없습니다';
+  }
+}
+
+function openEditRefrigForm(sel){
+  document.getElementById('editRefrigHint').classList.add('hidden');
+  document.getElementById('editRefrigForm').classList.remove('hidden');
+  document.getElementById('editRefrigAmount').value = sel.amount;
+  document.getElementById('editRefrigMsg').innerHTML = '';
+}
+
+document.getElementById('editRefrigSaveBtn').addEventListener('click', async ()=>{
+  const msgEl = document.getElementById('editRefrigMsg');
+  if (!state.selectedRefrig){ return; }
+  const newAmount = document.getElementById('editRefrigAmount').value;
+  const user = document.getElementById('editRefrigUser').value.trim();
+  const note = document.getElementById('editRefrigNote').value.trim();
+  if (newAmount === '' || Number(newAmount) < 0){ msgEl.innerHTML = '<div class="msg err">순 냉매량을 확인해주세요.</div>'; return; }
+  if (!user){ msgEl.innerHTML = '<div class="msg err">담당자를 입력해주세요.</div>'; return; }
+  msgEl.innerHTML = '<div class="msg ok">저장 중...</div>';
+  try{
+    const res = await fetch(SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({
+        action:'setRefrigAmount', refrigType: state.selectedRefrig.type,
+        numbering: state.selectedRefrig.numbering, newAmount, user, note
+      })
+    });
+    const data = await res.json();
+    if (data.success){
+      msgEl.innerHTML = '<div class="msg ok">수정 완료 · 현재 '+fmt(data.newAmount)+' kg</div>';
+      document.getElementById('editRefrigUser').value=''; document.getElementById('editRefrigNote').value='';
+      state.selectedRefrig.amount = data.newAmount;
+      await loadData();
+    } else msgEl.innerHTML = '<div class="msg err">'+(data.message||'수정에 실패했습니다.')+'</div>';
+  }catch(err){ msgEl.innerHTML = '<div class="msg err">네트워크 오류가 발생했습니다.</div>'; }
+});
+
+document.getElementById('editRefrigDeleteBtn').addEventListener('click', async ()=>{
+  const msgEl = document.getElementById('editRefrigMsg');
+  if (!state.selectedRefrig){ return; }
+  const label = state.selectedRefrig.type + '-' + state.selectedRefrig.numbering;
+  if (!confirm(label + ' 용기를 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
+  const user = document.getElementById('editRefrigUser').value.trim();
+  try{
+    const res = await fetch(SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'deleteRefrigContainer', refrigType: state.selectedRefrig.type, numbering: state.selectedRefrig.numbering, user })
+    });
+    const data = await res.json();
+    if (data.success){
+      state.selectedRefrig = null;
+      document.getElementById('editRefrigForm').classList.add('hidden');
+      document.getElementById('editRefrigHint').classList.remove('hidden');
+      await loadData();
+    } else msgEl.innerHTML = '<div class="msg err">'+(data.message||'삭제에 실패했습니다.')+'</div>';
+  }catch(err){ msgEl.innerHTML = '<div class="msg err">네트워크 오류가 발생했습니다.</div>'; }
+});
+
+document.querySelectorAll('#refrigFormCard .seg button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#refrigFormCard .seg button').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    state.refrigTxType = btn.dataset.rtype;
+  });
+});
+
+document.getElementById('refrigSubmitBtn').addEventListener('click', async ()=>{
+  const msgEl = document.getElementById('refrigFormMsg');
+  if (!state.selectedRefrig){ msgEl.innerHTML = '<div class="msg err">먼저 표에서 용기를 선택해주세요.</div>'; return; }
+  const amount = document.getElementById('refrigAmountInput').value;
+  const user = document.getElementById('refrigUserInput').value.trim();
+  const note = document.getElementById('refrigNoteInput').value.trim();
+  if (!amount || Number(amount) <= 0){ msgEl.innerHTML = '<div class="msg err">수량을 확인해주세요.</div>'; return; }
+  if (!user){ msgEl.innerHTML = '<div class="msg err">담당자를 입력해주세요.</div>'; return; }
+  document.getElementById('refrigSubmitBtn').disabled = true;
+  msgEl.innerHTML = '<div class="msg ok">등록 중...</div>';
+  try{
+    const res = await fetch(SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({
+        action:'refrigTransaction', refrigType: state.selectedRefrig.type,
+        numbering: state.selectedRefrig.numbering, type: state.refrigTxType, amount, user, note
+      })
+    });
+    const data = await res.json();
+    if (data.success){
+      msgEl.innerHTML = '<div class="msg ok">등록 완료 · 현재 '+fmt(data.newAmount)+' kg</div>';
+      document.getElementById('refrigAmountInput').value=''; document.getElementById('refrigNoteInput').value='';
+      state.selectedRefrig.amount = data.newAmount;
+      await loadData();
+    } else msgEl.innerHTML = '<div class="msg err">'+(data.message||'등록에 실패했습니다.')+'</div>';
+  }catch(err){ msgEl.innerHTML = '<div class="msg err">네트워크 오류가 발생했습니다.</div>'; }
+  document.getElementById('refrigSubmitBtn').disabled = false;
+});
+
+document.getElementById('addRefrigBtn').addEventListener('click', async ()=>{
+  const refrigType = document.getElementById('newRefrigType').value.trim();
+  const startNumbering = document.getElementById('newRefrigStart').value;
+  const count = Number(document.getElementById('newRefrigCount').value) || 1;
+  const initialAmount = document.getElementById('newRefrigAmount').value || 0;
+  const user = document.getElementById('newRefrigUser').value.trim();
+  const msgEl = document.getElementById('addRefrigMsg');
+  if (!refrigType){ msgEl.innerHTML = '<div class="msg err">냉매 종류를 입력해주세요.</div>'; return; }
+  if (!user){ msgEl.innerHTML = '<div class="msg err">담당자를 입력해주세요.</div>'; return; }
+  try{
+    const res = await fetch(SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'addRefrigContainer', refrigType, startNumbering, count, initialAmount, user })
+    });
+    const data = await res.json();
+    if (data.success){
+      const nums = data.numberings.map(n=>refrigType+'-'+n).join(', ');
+      msgEl.innerHTML = '<div class="msg ok">'+nums+' 생성되었습니다.</div>';
+      document.getElementById('newRefrigType').value=''; document.getElementById('newRefrigStart').value=''; document.getElementById('newRefrigAmount').value=''; document.getElementById('newRefrigCount').value='1'; document.getElementById('newRefrigUser').value='';
+      await loadData();
+    } else msgEl.innerHTML = '<div class="msg err">'+(data.message||'추가에 실패했습니다.')+'</div>';
+  }catch(err){ msgEl.innerHTML = '<div class="msg err">네트워크 오류가 발생했습니다.</div>'; }
+});
+
+let editingHist = null;
+
+function openEditHistoryForm(h){
+  editingHist = h;
+  document.getElementById('editHistCard').classList.remove('hidden');
+  document.getElementById('editHistTitle').textContent = h.label + ' 히스토리 수정 (' + tsStr(h.timestamp) + ')';
+  document.querySelectorAll('#editHistCard .seg button').forEach(b=>{
+    b.classList.toggle('on', b.dataset.htype === h.type);
+  });
+  document.getElementById('editHistAmountLabel').textContent = h.category === '쿨런트' ? '순 쿨런트량 (kg)' : '순 냉매량 (kg)';
+  document.getElementById('editHistAmount').value = h.amount;
+  document.getElementById('editHistUser').value = h.user || '';
+  document.getElementById('editHistNote').value = h.note || '';
+  document.getElementById('editHistMsg').innerHTML = '';
+  document.getElementById('editHistCard').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+document.querySelectorAll('#editHistCard .seg button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#editHistCard .seg button').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+  });
+});
+
+document.getElementById('editHistSaveBtn').addEventListener('click', async ()=>{
+  const msgEl = document.getElementById('editHistMsg');
+  if (!editingHist){ return; }
+  const type = document.querySelector('#editHistCard .seg button.on').dataset.htype;
+  const amount = document.getElementById('editHistAmount').value;
+  const user = document.getElementById('editHistUser').value.trim();
+  const note = document.getElementById('editHistNote').value.trim();
+  if (!amount || Number(amount) <= 0){ msgEl.innerHTML = '<div class="msg err">수량을 확인해주세요.</div>'; return; }
+  if (!user){ msgEl.innerHTML = '<div class="msg err">담당자를 입력해주세요.</div>'; return; }
+  msgEl.innerHTML = '<div class="msg ok">저장 중...</div>';
+  try{
+    const res = await fetch(SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'editHistory', id: editingHist.id, type, amount, user, note })
+    });
+    const data = await res.json();
+    if (data.success){
+      document.getElementById('editHistCard').classList.add('hidden');
+      editingHist = null;
+      await loadData();
+    } else msgEl.innerHTML = '<div class="msg err">'+(data.message||'수정에 실패했습니다.')+'</div>';
+  }catch(err){ msgEl.innerHTML = '<div class="msg err">네트워크 오류가 발생했습니다.</div>'; }
+});
+
+loadData();
+</script>
+</body>
+</html>
