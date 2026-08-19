@@ -272,6 +272,7 @@
       <div class="card" id="editItemCard">
         <h2 id="editItemTitle">품목을 선택하면 재고를 수정할 수 있습니다</h2>
         <div id="editItemForm" class="hidden">
+          <div class="row"><label>품목명</label><input type="text" id="editItemName"></div>
           <div class="row"><label>재고량 (kg)</label><input type="number" id="editItemStock" step="0.1"></div>
           <div class="row"><label>담당자</label><input type="text" id="editItemUser" placeholder="이름 입력"></div>
           <div class="row"><label>수정 사유 (선택)</label><input type="text" id="editItemNote" placeholder="예: 실사 후 수량 정정"></div>
@@ -575,6 +576,7 @@ document.getElementById('addToggle').addEventListener('click', ()=>{
 function openEditItemForm(it){
   document.getElementById('editItemTitle').textContent = it.name + ' 수정 · 현재 ' + fmt(it.stock) + ' kg';
   document.getElementById('editItemForm').classList.remove('hidden');
+  document.getElementById('editItemName').value = it.name;
   document.getElementById('editItemStock').value = it.stock;
   document.getElementById('editItemMsg').innerHTML = '';
 }
@@ -582,23 +584,27 @@ function openEditItemForm(it){
 document.getElementById('editItemSaveBtn').addEventListener('click', async ()=>{
   const msgEl = document.getElementById('editItemMsg');
   if (!state.editingItem){ return; }
+  const newName = document.getElementById('editItemName').value.trim();
   const newStock = document.getElementById('editItemStock').value;
   const user = document.getElementById('editItemUser').value.trim();
   const note = document.getElementById('editItemNote').value.trim();
+  if (!newName){ msgEl.innerHTML = '<div class="msg err">품목명을 입력해주세요.</div>'; return; }
   if (newStock === '' || Number(newStock) < 0){ msgEl.innerHTML = '<div class="msg err">재고량을 확인해주세요.</div>'; return; }
   if (!user){ msgEl.innerHTML = '<div class="msg err">담당자를 입력해주세요.</div>'; return; }
   msgEl.innerHTML = '<div class="msg ok">저장 중...</div>';
   try{
     const res = await fetch(SCRIPT_URL, {
       method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({ action:'setCoolantStock', name: state.editingItem, newStock, user, note })
+      body: JSON.stringify({ action:'setCoolantStock', name: state.editingItem, newName, newStock, user, note })
     });
     const data = await res.json();
     if (data.success){
       msgEl.innerHTML = '<div class="msg ok">수정 완료 · 현재 재고 '+fmt(data.newStock)+' kg</div>';
       document.getElementById('editItemUser').value=''; document.getElementById('editItemNote').value='';
       const item = state.coolants.find(i=>i.name===state.editingItem);
-      if (item) item.stock = data.newStock;
+      if (item){ item.stock = data.newStock; item.name = data.newName; }
+      state.editingItem = data.newName;
+      document.getElementById('editItemTitle').textContent = data.newName + ' 수정 · 현재 ' + fmt(data.newStock) + ' kg';
       renderCoolant(); renderStats();
     } else msgEl.innerHTML = '<div class="msg err">'+(data.message||'수정에 실패했습니다.')+'</div>';
   }catch(err){ msgEl.innerHTML = '<div class="msg err">네트워크 오류가 발생했습니다.</div>'; }
